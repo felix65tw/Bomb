@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>手機版踩地雷 - 多難度版</title>
+    <style>
+        :root {
+            --bg-color: #f0f0f0;
+            --cell-bg: #bdbdbd;
+            --cell-border-light: #ffffff;
+            --cell-border-dark: #7b7b7b;
+            --revealed-bg: #e0e0e0;
+            --primary-color: #4a90e2;
+            --danger-color: #e74c3c;
+            --text-color: #333;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background-color: var(--bg-color);
+            user-select: none;
+            -webkit-user-select: none;
+            overflow: hidden; /* 防止整個頁面捲動 */
+        }
+
+        /* --- 頂部資訊欄 --- */
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            width: 100%;
+            padding: 10px 15px;
+            background: white;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            font-weight: bold;
+            font-size: 1.1rem;
+            box-sizing: border-box;
+            z-index: 10;
+        }
+
+        .header-left { display: flex; gap: 10px; align-items: center; }
+        .back-btn {
+            background: #eee;
+            border: none;
+            padding: 5px 10px;
+            border-radius: 5px;
+            font-size: 0.9rem;
+            cursor: pointer;
+        }
+        .reset-btn {
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            cursor: pointer;
+        }
+
+        /* --- 遊戲區域 (可捲動) --- */
+        .game-container {
+            flex: 1;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: auto; /* 允許地圖捲動 */
+            width: 100%;
+            background-color: #999;
+            padding: 10px;
+            box-sizing: border-box;
+        }
+
+        #grid {
+            display: grid;
+            gap: 1px;
+            background-color: #7b7b7b;
+            border: 2px solid #7b7b7b;
+            margin: auto; /* 讓地圖在捲動區域置中 */
+        }
+
+        .cell {
+            width: 35px; /* 固定大小，確保手指好點 */
+            height: 35px;
+            background-color: var(--cell-bg);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 1.2rem;
+            cursor: pointer;
+            border-top: 3px solid var(--cell-border-light);
+            border-left: 3px solid var(--cell-border-light);
+            border-right: 3px solid var(--cell-border-dark);
+            border-bottom: 3px solid var(--cell-border-dark);
+            box-sizing: border-box;
+        }
+
+        .cell.revealed {
+            background-color: var(--revealed-bg);
+            border: 1px solid #ccc;
+        }
+
+        .cell.mine { background-color: var(--danger-color); }
+        .cell.flag { color: red; }
+
+        /* 數字顏色 */
+        .c-1 { color: blue; }
+        .c-2 { color: green; }
+        .c-3 { color: red; }
+        .c-4 { color: darkblue; }
+        .c-5 { color: darkred; }
+        .c-6 { color: teal; }
+        .c-7 { color: black; }
+        .c-8 { color: gray; }
+
+        /* --- 底部操作區 --- */
+        .controls {
+            padding: 15px;
+            width: 100%;
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            background: white;
+            box-shadow: 0 -2px 5px rgba(0,0,0,0.1);
+            z-index: 10;
+        }
+
+        .mode-btn {
+            padding: 12px 30px;
+            font-size: 1.1rem;
+            border: none;
+            border-radius: 50px;
+            background: #eee;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-weight: bold;
+        }
+
+        .mode-btn.active {
+            background: var(--primary-color);
+            color: white;
+            box-shadow: 0 2px 8px rgba(74, 144, 226, 0.4);
+        }
+
+        /* --- 選單遮罩 (Menu Overlay) --- */
+        #menu-overlay {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(255,255,255,0.95);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+            transition: opacity 0.3s;
+        }
+
+        #menu-overlay.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .menu-title {
+            font-size: 2rem;
+            margin-bottom: 30px;
+            color: var(--primary-color);
+            text-shadow: 1px 1px 0px #ccc;
+        }
+
+        .difficulty-btn {
+            width: 200px;
+            padding: 15px;
+            margin: 10px;
+            font-size: 1.2rem;
+            border: none;
+            border-radius: 10px;
+            background: white;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            cursor: pointer;
+            transition: transform 0.1s;
+            font-weight: bold;
+            color: #555;
+            border-left: 5px solid transparent;
+        }
+
+        .difficulty-btn:active { transform: scale(0.98); }
+        
+        /* 難度顏色標示 */
+        .btn-easy { border-left-color: #2ecc71; }
+        .btn-medium { border-left-color: #f1c40f; }
+        .btn-hard { border-left-color: #e67e22; }
+        .btn-extreme { border-left-color: #e74c3c; }
+
+    </style>
+</head>
+<body>
+
+    <div id="menu-overlay">
+        <h1 class="menu-title">💣 踩地雷</h1>
+        <button class="difficulty-btn btn-easy" onclick="selectDifficulty('easy')">簡單 (9x9)</button>
+        <button class="difficulty-btn btn-medium" onclick="selectDifficulty('medium')">中等 (12x12)</button>
+        <button class="difficulty-btn btn-hard" onclick="selectDifficulty('hard')">困難 (16x16)</button>
+        <button class="difficulty-btn btn-extreme" onclick="selectDifficulty('extreme')">地獄 (20x20)</button>
+    </div>
+
+    <div class="header">
+        <div class="header-left">
+            <button class="back-btn" onclick="showMenu()">☰ 選單</button>
+            <span id="mine-count">💣 0</span>
+        </div>
+        <button class="reset-btn" onclick="initGame()">😊</button>
+        <span id="timer">⏱️ 000</span>
+    </div>
+
+    <div class="game-container">
+        <div id="grid"></div>
+    </div>
+
+    <div class="controls">
+        <button id="dig-btn" class="mode-btn active" onclick="setMode('dig')">⛏️ 挖掘</button>
+        <button id="flag-btn" class="mode-btn" onclick="setMode('flag')">🚩 插旗</button>
+    </div>
+
+<script>
+    // 難度設定
+    const LEVELS = {
+        easy: { rows: 9, cols: 9, mines: 10 },
+        medium: { rows: 12, cols: 12, mines: 25 },
+        hard: { rows: 16, cols: 16, mines: 45 },
+        extreme: { rows: 20, cols: 20, mines: 80 }
+    };
+
+    // 當前遊戲狀態
+    let currentConfig = LEVELS.easy;
+    let grid = [];
+    let isGameOver = false;
+    let flagsLeft = 0;
+    let timer = 0;
+    let timerInterval = null;
+    let isFirstClick = true;
+    let currentMode = 'dig'; // 'dig' or 'flag'
+
+    // DOM 元素
+    const gridElement = document.getElementById('grid');
+    const mineCountElement = document.getElementById('mine-count');
+    const timerElement = document.getElementById('timer');
+    const resetBtn = document.querySelector('.reset-btn');
+    const menuOverlay = document.getElementById('menu-overlay');
+
+    // 選擇難度
+    function selectDifficulty(level) {
+        currentConfig = LEVELS[level];
+        menuOverlay.classList.add('hidden');
+        initGame();
+    }
+
+    // 顯示選單
+    function showMenu() {
+        clearInterval(timerInterval);
+        menuOverlay.classList.remove('hidden');
+    }
+
+    // 初始化遊戲
+    function initGame() {
+        clearInterval(timerInterval);
+        grid = [];
+        gridElement.innerHTML = '';
+        isGameOver = false;
+        isFirstClick = true;
+        flagsLeft = currentConfig.mines;
+        timer = 0;
+        
+        timerElement.innerText = '⏱️ 000';
+        mineCountElement.innerText = `💣 ${flagsLeft}`;
+        resetBtn.innerText = '😊';
+        
+        // 設定 Grid 樣式 (動態欄位數)
+        gridElement.style.gridTemplateColumns = `repeat(${currentConfig.cols}, 35px)`;
+        gridElement.style.gridTemplateRows = `repeat(${currentConfig.rows}, 35px)`;
+
+        // 建立格子
+        for (let r = 0; r < currentConfig.rows; r++) {
+            const row = [];
+            for (let c = 0; c < currentConfig.cols; c++) {
+                const cell = document.createElement('div');
+                cell.classList.add('cell');
+                cell.dataset.r = r;
+                cell.dataset.c = c;
+                
+                // 綁定點擊事件
+                cell.addEventListener('click', () => handleInput(r, c));
+                cell.addEventListener('contextmenu', (e) => {
+                    e.preventDefault();
+                    toggleFlag(r, c);
+                });
+
+                gridElement.appendChild(cell);
+                row.push({
+                    element: cell,
+                    isMine: false,
+                    isRevealed: false,
+                    isFlagged: false,
+                    count: 0
+                });
+            }
+            grid.push(row);
+        }
+    }
+
+    // 處理輸入
+    function handleInput(r, c) {
+        if (isGameOver) return;
+        if (currentMode === 'flag') {
+            toggleFlag(r, c);
+            return;
+        }
+        if (grid[r][c].isFlagged) return;
+
+        if (isFirstClick) {
+            startTimer();
+            placeMines(r, c);
+            isFirstClick = false;
+        }
+
+        revealCell(r, c);
+    }
+
+    // 切換挖掘/插旗模式
+    function setMode(mode) {
+        currentMode = mode;
+        document.getElementById('dig-btn').classList.toggle('active', mode === 'dig');
+        document.getElementById('flag-btn').classList.toggle('active', mode === 'flag');
+    }
+
+    // 插旗
+    function toggleFlag(r, c) {
+        if (isGameOver || grid[r][c].isRevealed) return;
+
+        const cell = grid[r][c];
+        if (cell.isFlagged) {
+            cell.isFlagged = false;
+            cell.element.classList.remove('flag');
+            cell.element.innerText = '';
+            flagsLeft++;
+        } else {
+            if (flagsLeft > 0) {
+                cell.isFlagged = true;
+                cell.element.classList.add('flag');
+                cell.element.innerText = '🚩';
+                flagsLeft--;
+            }
+        }
+        mineCountElement.innerText = `💣 ${flagsLeft}`;
+    }
+
+    // 佈雷 (避開第一下點擊位置)
+    function placeMines(firstR, firstC) {
+        let minesPlaced = 0;
+        const totalCells = currentConfig.rows * currentConfig.cols;
+        // 如果地雷數設得太高，防止無窮迴圈
+        const safeLimit = totalCells - 9; 
+        const targetMines = Math.min(currentConfig.mines, safeLimit);
+
+        while (minesPlaced < targetMines) {
+            const r = Math.floor(Math.random() * currentConfig.rows);
+            const c = Math.floor(Math.random() * currentConfig.cols);
+
+            // 避開第一下點擊的周圍九宮格
+            const isSafeZone = Math.abs(r - firstR) <= 1 && Math.abs(c - firstC) <= 1;
+
+            if (!grid[r][c].isMine && !isSafeZone) {
+                grid[r][c].isMine = true;
+                minesPlaced++;
+            }
+        }
+        calculateNumbers();
+    }
+
+    // 計算數字
+    function calculateNumbers() {
+        for (let r = 0; r < currentConfig.rows; r++) {
+            for (let c = 0; c < currentConfig.cols; c++) {
+                if (grid[r][c].isMine) continue;
+                let count = 0;
+                for (let i = -1; i <= 1; i++) {
+                    for (let j = -1; j <= 1; j++) {
+                        const nr = r + i, nc = c + j;
+                        if (nr >= 0 && nr < currentConfig.rows && nc >= 0 && nc < currentConfig.cols && grid[nr][nc].isMine) {
+                            count++;
+                        }
+                    }
+                }
+                grid[r][c].count = count;
+            }
+        }
+    }
+
+    // 翻開格子
+    function revealCell(r, c) {
+        if (r < 0 || r >= currentConfig.rows || c < 0 || c >= currentConfig.cols) return;
+        const cell = grid[r][c];
+        
+        if (cell.isRevealed || cell.isFlagged) return;
+
+        cell.isRevealed = true;
+        cell.element.classList.add('revealed');
+
+        if (cell.isMine) {
+            gameOver(false);
+            cell.element.innerText = '💣';
+            cell.element.style.backgroundColor = 'red';
+            return;
+        }
+
+        if (cell.count > 0) {
+            cell.element.innerText = cell.count;
+            cell.element.classList.add(`c-${cell.count}`);
+        } else {
+            // 空白格擴散
+            for (let i = -1; i <= 1; i++) {
+                for (let j = -1; j <= 1; j++) {
+                    revealCell(r + i, c + j);
+                }
+            }
+        }
+
+        checkWin();
+    }
+
+    // 檢查勝利
+    function checkWin() {
+        let revealedCount = 0;
+        const totalCells = currentConfig.rows * currentConfig.cols;
+        for (let r = 0; r < currentConfig.rows; r++) {
+            for (let c = 0; c < currentConfig.cols; c++) {
+                if (grid[r][c].isRevealed) revealedCount++;
+            }
+        }
+        if (revealedCount === totalCells - currentConfig.mines) {
+            gameOver(true);
+        }
+    }
+
+    // 遊戲結束處理
+    function gameOver(win) {
+        isGameOver = true;
+        clearInterval(timerInterval);
+        resetBtn.innerText = win ? '😎' : '😵';
+        mineCountElement.innerText = win ? "WIN!" : "FAIL";
+        
+        if (!win) {
+            grid.forEach(row => row.forEach(cell => {
+                if (cell.isMine && !cell.isFlagged) {
+                    cell.element.innerText = '💣';
+                    cell.element.classList.add('revealed');
+                }
+                // 標錯旗子
+                if (!cell.isMine && cell.isFlagged) {
+                     cell.element.innerText = '❌';
+                }
+            }));
+        }
+    }
+
+    function startTimer() {
+        timerInterval = setInterval(() => {
+            timer++;
+            timerElement.innerText = '⏱️ ' + timer.toString().padStart(3, '0');
+        }, 1000);
+    }
+</script>
+</body>
+</html>
